@@ -11,4 +11,18 @@ packages/
 **/dependency-reduced-pom.xml
 /skywalking-agent/
 /dist/
+<<<<<<< Updated upstream
 .mvn/wrapper/*.jar
+
+
+chehejia-iot-apigateway/
+demo-iot-ag/
+demo-ota-service/
+demo-undertow-server/
+devops-reception-web/
+=======
+
+/demo-iot-ag
+/demo-ota-service
+/chehejia-iot-apigateway
+>>>>>>> Stashed changes

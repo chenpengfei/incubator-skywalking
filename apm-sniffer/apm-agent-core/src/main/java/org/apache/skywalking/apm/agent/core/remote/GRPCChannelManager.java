@@ -49,6 +49,7 @@ public class GRPCChannelManager implements BootService, Runnable {
     private volatile boolean reconnect = true;
     private Random random = new Random();
     private List<GRPCChannelListener> listeners = Collections.synchronizedList(new LinkedList<GRPCChannelListener>());
+    private volatile int selectedIdx = -1;
 
     @Override
     public void prepare() throws Throwable {
@@ -89,25 +90,29 @@ public class GRPCChannelManager implements BootService, Runnable {
                 String server = "";
                 try {
                     int index = Math.abs(random.nextInt()) % RemoteDownstreamConfig.Collector.GRPC_SERVERS.size();
-                    server = RemoteDownstreamConfig.Collector.GRPC_SERVERS.get(index);
-                    String[] ipAndPort = server.split(":");
+                    if (index != selectedIdx) {
+                        selectedIdx = index;
 
-                    managedChannel = GRPCChannel.newBuilder(ipAndPort[0], Integer.parseInt(ipAndPort[1]))
-                        .addManagedChannelBuilder(new StandardChannelBuilder())
-                        .addManagedChannelBuilder(new TLSChannelBuilder())
-                        .addChannelDecorator(new AuthenticationDecorator())
-                        .build();
+                        server = RemoteDownstreamConfig.Collector.GRPC_SERVERS.get(index);
+                        String[] ipAndPort = server.split(":");
 
-                    if (!managedChannel.isShutdown() && !managedChannel.isTerminated()) {
-                        reconnect = false;
+                        if (managedChannel != null) {
+                            managedChannel.shutdownNow();
+                        }
+
+                        managedChannel = GRPCChannel.newBuilder(ipAndPort[0], Integer.parseInt(ipAndPort[1]))
+                                .addManagedChannelBuilder(new StandardChannelBuilder())
+                                .addManagedChannelBuilder(new TLSChannelBuilder())
+                                .addChannelDecorator(new AuthenticationDecorator())
+                                .build();
+
                         notify(GRPCChannelStatus.CONNECTED);
-                    } else {
-                        notify(GRPCChannelStatus.DISCONNECT);
                     }
+
+                    reconnect = false;
                     return;
                 } catch (Throwable t) {
                     logger.error(t, "Create channel to {} fail.", server);
-                    notify(GRPCChannelStatus.DISCONNECT);
                 }
             }
 
@@ -148,11 +153,11 @@ public class GRPCChannelManager implements BootService, Runnable {
         if (throwable instanceof StatusRuntimeException) {
             StatusRuntimeException statusRuntimeException = (StatusRuntimeException)throwable;
             return statusEquals(statusRuntimeException.getStatus(),
-                Status.UNAVAILABLE,
-                Status.PERMISSION_DENIED,
-                Status.UNAUTHENTICATED,
-                Status.RESOURCE_EXHAUSTED,
-                Status.UNKNOWN
+                    Status.UNAVAILABLE,
+                    Status.PERMISSION_DENIED,
+                    Status.UNAUTHENTICATED,
+                    Status.RESOURCE_EXHAUSTED,
+                    Status.UNKNOWN
             );
         }
         return false;
